@@ -1,3 +1,3 @@
 # Compile-Vulkan-Equipments-on-Windows
-This script prepared for a YouTube video. Watch the video before using it to avoid unexpected errors.  
+This script is prepared for a YouTube video. Watch the video before using it to avoid unexpected errors.  
 https://youtu.be/seidkuRehPw
