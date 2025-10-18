@@ -124,7 +124,7 @@ echo Selected Cmake Generator: %CMAKE_GENERATOR%
 set /P build_choice=Choose build type (1 for Release, 2 for Debug):
 if "%build_choice%"=="1" (
     set BUILD_TYPE=Release
-    set COMPILE_FLAGS="/MP /O2 /arch:SSE4.2"
+    set COMPILE_FLAGS="/MP /O2 /arch:SSE4.2 /DWIN32 /EHsc"
 ) else if "%build_choice%"=="2" (
     set BUILD_TYPE=Debug
     set COMPILE_FLAGS="/MP /Od"
@@ -264,7 +264,6 @@ cmake -G %CMAKE_GENERATOR% ^
     -D CMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -D CMAKE_CXX_FLAGS=%COMPILE_FLAGS% ^
     -D BUILD_LAYERMGR=OFF ^
-    -D BUILD_VIA=OFF ^
     -D CMAKE_INSTALL_PREFIX=%BUILD_OUT_DIR%\__VulkanTools__ ^
     -S .\VulkanTools ^
     -B %BUILD_DIR_VULKAN_TOOLS%
@@ -274,6 +273,7 @@ cmake --build %BUILD_DIR_VULKAN_TOOLS% --config %BUILD_TYPE% --target install -j
 cmake -G %CMAKE_GENERATOR% ^
     -D CMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -D CMAKE_CXX_FLAGS=%COMPILE_FLAGS% ^
+    -D WIN32="ON" ^
     -D CMAKE_INSTALL_PREFIX=%BUILD_OUT_DIR%\__VulkanValidationLayers__ ^
     -S .\Vulkan-ValidationLayers ^
     -B %BUILD_DIR_VULKAN_ValidationLayers%
