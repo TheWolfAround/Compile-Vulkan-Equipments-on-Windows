@@ -1,0 +1,12 @@
+__build_dir__/
+__build_out__/
+glslang/
+shaderc/
+SPIRV-Headers/
+SPIRV-Tools/
+valijson/
+Vulkan-Headers/
+Vulkan-Loader/
+Vulkan-Utility-Libraries/
+Vulkan-ValidationLayers/
+VulkanTools/

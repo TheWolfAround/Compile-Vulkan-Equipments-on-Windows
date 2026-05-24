@@ -1,22 +1,45 @@
-@if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build" (
-    @if not defined DevEnvDir (
-        call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+@echo off
+@if not defined DevEnvDir (
+    set "InstalledVSPath="
+    set "VsWherePath="
+
+    setlocal enabledelayedexpansion
+
+    @if exist "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" (
+        set "VsWherePath=C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
     )
-    echo.
-    echo Visual Studio 17 2002 is already installed. Installation dir: "C:\Program Files\Microsoft Visual Studio\2022"
-) else (
-    @if exist "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build" (
-        @if not defined DevEnvDir (
-            call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
-        )
+
+    @if exist "C:\Program Files\Microsoft Visual Studio\Installer\vswhere.exe" (
+        set "VsWherePath=C:\Program Files\Microsoft Visual Studio\Installer\vswhere.exe"
+    )
+
+    if not defined VsWherePath (
         echo.
-        echo 'Build Tools for Visual Studio 2022' is already installed. Installation dir: "C:\Program Files (x86)\Microsoft Visual Studio\2022"
+        echo #############################################################
+        echo No Visual-Studio or VS-Build-Tools installation was detected.
+        echo #############################################################
+        exit /b 1
+    )
+
+    for /f "usebackq tokens=*" %%i in (
+        `"!VsWherePath!" -products * -latest -property installationPath`
+    ) do set "InstalledVSPath=%%i"
+
+    if defined InstalledVSPath (
+        if exist "!InstalledVSPath!\VC\Auxiliary\Build\vcvarsall.bat" (
+            call "!InstalledVSPath!\VC\Auxiliary\Build\vcvarsall.bat" x64
+        ) else (
+            echo.
+            echo ################################
+            echo Error: vcvarsall.bat not found.
+            echo ################################
+            exit /b 1
+        )
     ) else (
         echo.
-        echo Could not find 'Visual Studio 17 2022' or 'Build Tools for Visual Studio'.
-        echo One of these is required for the compilation process.
-        echo Quitting.
-        echo.
+        echo #############################################################
+        echo No Visual-Studio or VS-Build-Tools installation was detected.
+        echo #############################################################
         exit /b 1
     )
 )
@@ -106,17 +129,36 @@ echo.
 
 @echo.
 @echo off
-set /P cmake_generator_type=Choose Cmake Generator (1 for Ninja, 2 for Visual Studio 17 2022):
+set /P cmake_generator_type="Choose Cmake Generator -- 1 for Ninja(Recommended), 2 for Visual Studio Native : "
 if "%cmake_generator_type%"=="1" (
     set CMAKE_GENERATOR=Ninja
 ) else if "%cmake_generator_type%"=="2" (
-    set CMAKE_GENERATOR="Visual Studio 17 2022"
+
+    setlocal EnableDelayedExpansion
+
+    set "VS_VERSION_MAJOR="
+    set "VS_YEAR="
+
+    :: Get full installationVersion and extract first 2 characters (major version)
+    for /f "usebackq tokens=*" %%i in (
+        `"!VsWherePath!" -products * -latest -property installationVersion`
+    ) do set "VS_VERSION_MAJOR=%%i"
+    set "VS_VERSION_MAJOR=!VS_VERSION_MAJOR:~0,2!"
+
+    :: Get full displayName and extract last 4 characters (year)
+    for /f "usebackq tokens=*" %%i in (
+        `"!VsWherePath!" -products * -latest -property displayName`
+    ) do set "VS_YEAR=%%i"
+    set "VS_YEAR=!VS_YEAR:~-4!"
+
+    :: Construct the CMake generator string
+    set "CMAKE_GENERATOR=Visual Studio !VS_VERSION_MAJOR! !VS_YEAR!"
 ) else (
     echo Invalid Cmake Generator. Please enter 1 or 2.
     exit /b 1
 )
 @echo.
-echo Selected Cmake Generator: %CMAKE_GENERATOR%
+echo Selected Cmake Generator: !CMAKE_GENERATOR!
 @echo.
 
 @echo.
@@ -160,7 +202,7 @@ set BUILD_OUT_DIR=%cd%\__build_out__\%BUILD_TYPE%
 
 rmdir /s /q %BUILD_DIR%
 
-cmake -G %CMAKE_GENERATOR% ^
+cmake -G "!CMAKE_GENERATOR!" ^
     -D CMAKE_CXX_FLAGS=%COMPILE_FLAGS% ^
     -D CMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -D SPIRV_HEADERS_ENABLE_TESTS=OFF ^
@@ -175,7 +217,7 @@ set SPIRV-Headers_DIR=%BUILD_OUT_DIR%\__SPIRVHeaders__\share\cmake
 setlocal enabledelayedexpansion
 set SPIRV_Headers_SOURCE_DIR=%cd%\SPIRV-Headers
 set "SPIRV_Headers_SOURCE_DIR=!SPIRV_Headers_SOURCE_DIR:\=/!"
-cmake -G %CMAKE_GENERATOR% ^
+cmake -G "!CMAKE_GENERATOR!" ^
     -D CMAKE_CXX_FLAGS=%COMPILE_FLAGS% ^
     -D CMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -D SPIRV-Headers_SOURCE_DIR=%SPIRV_Headers_SOURCE_DIR% ^
@@ -187,7 +229,7 @@ cmake --build %BUILD_DIR_VULKAN_SPIRV_Tools% --config %BUILD_TYPE% --target inst
 set SPIRV-Tools_DIR=%BUILD_OUT_DIR%\__SPIRVTools__\SPIRV-Tools\cmake
 set SPIRV-Tools-opt_DIR=%BUILD_OUT_DIR%\__SPIRVTools__\SPIRV-Tools-opt\cmake
 
-cmake -G %CMAKE_GENERATOR% ^
+cmake -G "!CMAKE_GENERATOR!" ^
     -D CMAKE_CXX_FLAGS=%COMPILE_FLAGS% ^
     -D CMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -D ENABLE_GLSLANG_JS=OFF ^
@@ -203,7 +245,7 @@ set glslang_SOURCE_DIR=%cd%\glslang
 set "glslang_SOURCE_DIR=!glslang_SOURCE_DIR:\=/!"
 set SPIRV_Tools_SOURCE_DIR=%cd%\SPIRV-Tools
 set "SPIRV_Tools_SOURCE_DIR=!SPIRV_Tools_SOURCE_DIR:\=/!"
-cmake -G %CMAKE_GENERATOR% ^
+cmake -G "!CMAKE_GENERATOR!" ^
     -D CMAKE_CXX_FLAGS=%COMPILE_FLAGS% ^
     -D CMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -D SHADERC_SKIP_TESTS=ON ^
@@ -219,7 +261,7 @@ cmake -G %CMAKE_GENERATOR% ^
 cmake --build %BUILD_DIR_VULKAN_SHADERC% --config %BUILD_TYPE% --target install -j%NUM_THREADS%
 
 
-cmake -G %CMAKE_GENERATOR% ^
+cmake -G "!CMAKE_GENERATOR!" ^
     -D VULKAN_HEADERS_ENABLE_TESTS=OFF ^
     -D CMAKE_INSTALL_PREFIX=%BUILD_OUT_DIR%\__VulkanHeaders__ ^
     -S .\Vulkan-Headers ^
@@ -228,7 +270,7 @@ cmake -G %CMAKE_GENERATOR% ^
 cmake --build %BUILD_DIR_VULKAN_HEADERS% --config %BUILD_TYPE% --target install -j%NUM_THREADS%
 set VulkanHeaders_DIR=%BUILD_OUT_DIR%\__VulkanHeaders__\share\cmake
 
-cmake -G %CMAKE_GENERATOR% ^
+cmake -G "!CMAKE_GENERATOR!" ^
     -D CMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -D CMAKE_C_FLAGS=%COMPILE_FLAGS% ^
     -D BUILD_TESTS=OFF ^
@@ -240,7 +282,7 @@ cmake -G %CMAKE_GENERATOR% ^
 cmake --build %BUILD_DIR_VULKAN_LOADER% --config %BUILD_TYPE% --target install -j%NUM_THREADS%
 set VulkanLoader_DIR=%BUILD_OUT_DIR%\__VulkanLoader__\lib\cmake
 
-cmake -G %CMAKE_GENERATOR% ^
+cmake -G "!CMAKE_GENERATOR!" ^
     -D CMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -D CMAKE_CXX_FLAGS=%COMPILE_FLAGS% ^
     -D CMAKE_INSTALL_PREFIX=%BUILD_OUT_DIR%\__VulkanUtilityLibraries__ ^
@@ -250,7 +292,7 @@ cmake -G %CMAKE_GENERATOR% ^
 cmake --build %BUILD_DIR_VULKAN_UTILITY_LIBRARIES% --config %BUILD_TYPE% --target install -j%NUM_THREADS%
 set VulkanUtilityLibraries_DIR=%BUILD_OUT_DIR%\__VulkanUtilityLibraries__\lib\cmake
 
-cmake -G %CMAKE_GENERATOR% ^
+cmake -G "!CMAKE_GENERATOR!" ^
     -D CMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -D CMAKE_CXX_FLAGS=%COMPILE_FLAGS% ^
     -D CMAKE_INSTALL_PREFIX=%BUILD_OUT_DIR%\__valijson__ ^
@@ -260,7 +302,7 @@ cmake -G %CMAKE_GENERATOR% ^
 cmake --build %BUILD_DIR_VALIJSON% --config %BUILD_TYPE% --target install -j%NUM_THREADS%
 set valijson_DIR=%BUILD_OUT_DIR%\__valijson__\lib\cmake
 
-cmake -G %CMAKE_GENERATOR% ^
+cmake -G "!CMAKE_GENERATOR!" ^
     -D CMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -D CMAKE_CXX_FLAGS=%COMPILE_FLAGS% ^
     -D BUILD_LAYERMGR=OFF ^
@@ -270,7 +312,7 @@ cmake -G %CMAKE_GENERATOR% ^
 
 cmake --build %BUILD_DIR_VULKAN_TOOLS% --config %BUILD_TYPE% --target install -j%NUM_THREADS%
 
-cmake -G %CMAKE_GENERATOR% ^
+cmake -G "!CMAKE_GENERATOR!" ^
     -D CMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -D CMAKE_CXX_FLAGS=%COMPILE_FLAGS% ^
     -D WIN32="ON" ^
